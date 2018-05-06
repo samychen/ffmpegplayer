@@ -29,7 +29,7 @@ static int combiner_drain(sox_effect_t *effp, sox_sample_t *obuf, size_t *osamp)
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     size_t nr = *osamp > 8192 ? 8192 : *osamp;
     size_t olen = fread(z->ibuf, sizeof(int16_t), nr, z->fp);
-    LOG_I("file read length=%d",olen);//8192
+    LOG_I("nr=%d,olen=%d",nr,olen);//8192
     for (int i = 0; i < olen; ++i) {
         obuf[i] = SOX_SIGNED_16BIT_TO_SAMPLE(z->ibuf[i], 0);
     }
@@ -125,7 +125,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmtest(JNIEnv *env, jobject insta
     in_enc.reverse_bytes = sox_option_no;
     in_enc.reverse_nibbles = sox_option_no;
 
-    in_sig.rate = 16000.f;
+    in_sig.rate = 44100.f;
     in_sig.channels = 1;
     in_sig.length = 0;
     in_sig.precision = 16;

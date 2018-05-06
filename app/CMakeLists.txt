@@ -19,6 +19,7 @@ add_library( # Sets the name of the library.
           src/main/cpp/test.c
           src/main/cpp/main.cpp
           src/main/cpp/processpcm.cpp
+          src/main/cpp/test_base.cpp
              )
 
 

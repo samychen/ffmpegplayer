@@ -8,14 +8,15 @@ extern "C"{
 }
 #define LOG_I(...) __android_log_print(ANDROID_LOG_ERROR , "main", __VA_ARGS__)
 
-typedef struct {
-    int16_t *ibuf;
-    size_t ilen;
-} input_combiner_t;
 jsize length;
 short *inputData;
 short *outputData;
 jboolean *args;
+
+typedef struct {
+    int16_t *ibuf;
+    size_t ilen;
+} input_combiner_t;
 
 static int combiner_start(sox_effect_t *effp) {
     LOG_I("combiner_start");
@@ -23,28 +24,25 @@ static int combiner_start(sox_effect_t *effp) {
     z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
     return SOX_SUCCESS;
 }
-//input
+
 static int combiner_drain(sox_effect_t *effp, sox_sample_t *obuf, size_t *osamp) {
     LOG_I("combiner_drain");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     size_t nr = *osamp > 8192 ? 8192 : *osamp;
-    memcpy(z->ibuf,inputData, nr);
-    size_t olen = *osamp;//fread(z->ibuf, sizeof(int16_t), nr, z->fp);
-    LOG_I("osmap length=%d",olen);//8192
-    for (int i = 0; i < olen; ++i) {
+    memcpy(z->ibuf,inputData, sizeof(short)*length);
+    LOG_I("read length=%d,sizeof input=%d",nr,sizeof(short)*length);//8192
+    for (int i = 0; i < sizeof(short)*length; ++i) {
         obuf[i] = SOX_SIGNED_16BIT_TO_SAMPLE(z->ibuf[i], 0);
     }
-    *osamp = olen;
-    return olen ? SOX_SUCCESS : SOX_EOF;
+    *osamp = nr;
+    return nr ? SOX_SUCCESS : SOX_EOF;
 }
 
 static int combiner_stop(sox_effect_t *effp) {
-    LOG_I("combiner_stop");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     free(z->ibuf);
     return SOX_SUCCESS;
 }
-
 static sox_effect_handler_t const *input_combiner_effect_fn(void) {
     LOG_I("input_combiner_effect_fn");
     static sox_effect_handler_t handler = {"input", 0, SOX_EFF_MCHAN |
@@ -54,13 +52,10 @@ static sox_effect_handler_t const *input_combiner_effect_fn(void) {
     };
     return &handler;
 }
-
 typedef struct {
     int16_t *ibuf;
 } output_combiner_t;
-
 static int ostart(sox_effect_t *effp) {
-    LOG_I("ostart");
     output_combiner_t *z = (output_combiner_t *) effp->priv;
     z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
     unsigned prec = effp->out_signal.precision;
@@ -68,15 +63,13 @@ static int ostart(sox_effect_t *effp) {
         *effp->in_signal.mult *= 1 - (1 << (31 - prec)) * (1. / SOX_SAMPLE_MAX);
     return SOX_SUCCESS;
 }
-//output
+
 static int output_flow(sox_effect_t *effp, sox_sample_t const *ibuf,
                        sox_sample_t *obuf, size_t *isamp, size_t *osamp) {
-    LOG_I("output_flow");
     output_combiner_t *z = (output_combiner_t *) effp->priv;
     size_t olen = *isamp;
-    LOG_I("olen = %d",olen);//1120 //0 7840 6176
+    LOG_I("olen = %d",olen);
     if (olen > 8192) {
-        LOG_I("olen > length");
         exit(-1);
     }
     SOX_SAMPLE_LOCALS;
@@ -84,13 +77,14 @@ static int output_flow(sox_effect_t *effp, sox_sample_t const *ibuf,
     for (int i = 0; i < olen; ++i) {
         z->ibuf[i] = SOX_SAMPLE_TO_SIGNED_16BIT(ibuf[i], flip);
     }
+
+    LOG_I("size =%d",*isamp);
     memcpy(outputData,z->ibuf,*isamp);
+//    fwrite(z->ibuf, sizeof(int16_t), *isamp, z->fp);
     *osamp = 0;
     return SOX_SUCCESS;
 }
-
 static int output_stop(sox_effect_t *effp) {
-    LOG_I("output_stop");
     output_combiner_t *z = (output_combiner_t *) effp->priv;
     free(z->ibuf);
     return SOX_SUCCESS;
@@ -121,15 +115,63 @@ Java_com_example_gx_ffmpegplayer_MainActivity_closeSox2(JNIEnv *env, jobject ins
     sox_quit();
 }
 
+int drain_cnt_down = 1;
+int flow_frequency = 0;
+
+static int reverb_input_drain(sox_effect_t * effp, sox_sample_t * obuf, size_t * osamp) {
+    LOG_I("input_drain success...");
+    if(drain_cnt_down > 0){
+        drain_cnt_down = 0;
+        *osamp = length;
+        int i = 0;
+        for (; i < *osamp; i++) {
+            obuf[i] = ((sox_sample_t) (inputData[i]) << 16);//SOX_SIGNED_16BIT_TO_SAMPLE(inputData[i], 0);//((sox_sample_t) (inputData[i]) << 16);
+        }
+        LOG_I("input_drain ... *osamp is %d return SOX_SUCCESS", *osamp);
+        return SOX_SUCCESS;
+    } else{
+        LOG_I("input_drain once execute must return SOX_EOF");
+        *osamp = 0;
+        return SOX_EOF;
+    }
+}
+
+static int reverb_output_flow(sox_effect_t *effp LSX_UNUSED, sox_sample_t const * ibuf, sox_sample_t * obuf LSX_UNUSED, size_t * isamp, size_t * osamp) {
+    LOG_I("reverb_output_flow output_flow... *isamp is %d *osamp is %d", *isamp, *osamp);
+    if (*isamp) {
+        int i = 0;
+        SOX_SAMPLE_LOCALS;
+        int flip=0;
+        LOG_I("flow_frequency=%d",flow_frequency);
+        for (; i < *isamp; i++) {
+            outputData[i] = (short) (ibuf[i] >> 16);//SOX_SAMPLE_TO_SIGNED_16BIT(ibuf[i], flip);//(short) (ibuf[i] >> 16);
+        }
+        flow_frequency++;
+    }
+    *osamp = 0;
+    LOG_I("output_flow success...");
+    return SOX_SUCCESS;
+}
+
+static sox_effect_handler_t const * reverb_input_handler(void) {
+    static sox_effect_handler_t handler = { "input", NULL, SOX_EFF_MCHAN | SOX_EFF_MODIFY, NULL, NULL, NULL, reverb_input_drain, NULL, NULL, 0 };
+    return &handler;
+}
+
+static sox_effect_handler_t const * reverb_output_handler(void) {
+    static sox_effect_handler_t handler = { "output", NULL, SOX_EFF_MCHAN | SOX_EFF_MODIFY | SOX_EFF_PREC, NULL, NULL, reverb_output_flow, NULL, NULL, NULL, 0 };
+    return &handler;
+}
+
 extern "C"
 JNIEXPORT jshortArray JNICALL
 Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject instance, jshortArray bytes_, jbooleanArray args_) {
     inputData = env->GetShortArrayElements(bytes_, NULL);
     args = env->GetBooleanArrayElements(args_, NULL);
     length = env->GetArrayLength(bytes_);
-    LOG_I("length=%d",length);
-    outputData = (short *) malloc(length);
-
+    outputData = (short *) malloc(sizeof(short)*length);
+    drain_cnt_down = 1;
+    flow_frequency = 0;
     sox_encodinginfo_t in_enc;
     sox_signalinfo_t in_sig;
 
@@ -151,26 +193,90 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     sox_effects_chain_t *chain = sox_create_effects_chain(&in_enc, &out_enc);
     sox_effect_t *effp;
     if (chain->length == 0) {
-        effp = sox_create_effect(input_combiner_effect_fn());
+        effp = sox_create_effect(reverb_input_handler());
         sox_add_effect(chain, effp, &in_sig, &out_sig);
         free(effp);
     }
+    int ret = 0;
+    //添加其他音效
     effp = sox_create_effect(sox_find_effect("pitch"));
-    char pp[32] = "100";
+    char pp[32] = "10";
     char *const arg[1] = {pp};
-    int ret = sox_effect_options(effp, 1, arg);
+    ret = sox_effect_options(effp, 1, arg);
     sox_add_effect(chain, effp, &in_sig, &out_sig);
     free(effp);
-    effp = sox_create_effect(output_effect_fn());
+    effp = sox_create_effect(sox_find_effect("rate")); /* Should always succeed. */
+    if (sox_effect_options(effp, 0, NULL) == SOX_EOF)
+        LOG_I("rate EOF"); /* The failing effect should have displayed an error message */
+    sox_add_effect(chain, effp, &in_sig, &out_sig);
+    free(effp);
+    effp = sox_create_effect(sox_find_effect("dither")); /* Should always succeed. */
+    if (sox_effect_options(effp, 0, NULL) == SOX_EOF)
+        LOG_I("dither EOF"); /* The failing effect should have displayed an error message */
+    sox_add_effect(chain, effp, &in_sig, &out_sig);
+    free(effp);
+    //volume
+//    effp = sox_create_effect(sox_find_effect("vol"));
+//    char* volargs[1];
+//    volargs[0] = "-3dB";
+//    ret = sox_effect_options(effp, 1,  volargs);
+//    if(ret != SOX_SUCCESS){
+//        LOG_I("sox_effect_options fail");
+//    }
+//    ret = sox_add_effect(chain, effp, &in_sig, &out_sig);
+//    if (ret != SOX_SUCCESS){
+//        LOG_I("sox_add_effect fail");
+//    }
+//    free(effp);
+//    //flanger
+//    effp = sox_create_effect(sox_find_effect("flanger"));
+//    sox_effect_options(effp, 0, NULL);
+//    sox_add_effect(chain, effp, &in_sig, &out_sig);
+//    free(effp);
+    //reverb
+//    effp = sox_create_effect(sox_find_effect("reverb"));
+//    char* wetOnly = "-w";
+//    char* reverbrance = "50";
+//    char* hfDamping = "50";
+//    char* roomScale = "100";
+//    char* stereoDepth = "100";
+//    char* preDelay = "0";
+//    char* wetGain = "0";
+//    char* reverbArgs[] = {wetOnly,reverbrance,hfDamping,roomScale,stereoDepth,preDelay,wetGain};
+//    ret = sox_effect_options(effp,7,reverbArgs);
+//    sox_add_effect(chain, effp, &in_sig, &out_sig);
+//    free(effp);
+    //echo
+//    effp = sox_create_effect(sox_find_effect("echo"));
+//    char* arg1 = "0.8";
+//    char* arg2 = "0.9";
+//    char* arg3 = "1000";
+//    char* arg4 = "0.3";
+//    char* arg5 = "1800";
+//    char* arg6 = "0.25";
+//    char* echoArgs[] = {arg1,arg2,arg3,arg4,arg5,arg6};
+//    ret = sox_effect_options(effp, 6, echoArgs);
+//    if (ret!=SOX_SUCCESS){
+//        LOG_I("sox_effect_options error");
+//    }
+//    ret = sox_add_effect(chain, effp, &in_sig, &out_sig);
+//    if (ret!=SOX_SUCCESS){
+//        LOG_I("sox_add_effect error");
+//    }
+//    free(effp);
+    //输出
+    effp = sox_create_effect(reverb_output_handler());
     if (sox_add_effect(chain, effp, &in_sig, &out_sig) != SOX_SUCCESS)
         LOG_I("sox_add_effect error");
     free(effp);
     int flow_status = sox_flow_effects(chain, NULL, NULL);
+
     sox_delete_effects_chain(chain);
     env->ReleaseShortArrayElements(bytes_, inputData, 0);
     env->ReleaseBooleanArrayElements(args_, args, 0);
     jshortArray jshortArray1 = env->NewShortArray(length);
     env->SetShortArrayRegion(jshortArray1, 0, length, outputData);
+    free(outputData);
     return jshortArray1;
 }
 

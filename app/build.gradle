@@ -16,6 +16,7 @@ android {
             }
         }
     }
+    publishNonDefault  true
     buildTypes {
         release {
             minifyEnabled false

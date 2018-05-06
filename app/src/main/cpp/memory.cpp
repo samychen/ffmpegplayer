@@ -139,14 +139,14 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
     static sox_format_t * in, * out;
     sox_effects_chain_t * chain;
     sox_effect_t * e;
-    sox_sample_t samples[length]; /* Temporary store whilst copying. */
+    sox_sample_t samples[length/2]; /* Temporary store whilst copying. */
     size_t number_read;
     int ret;
     short bufferptr[length];
-    short *resultbytes = (short *) malloc(length);
+    short *resultbytes = (short *) malloc(length* sizeof(short));
     int16_t *  out16buf;
     sox_signalinfo_t signalinfo = {
-            16000,
+            44100,
             1,
             16,
             0,
@@ -209,6 +209,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
     //让整个效果器链运行起来
 //    sox_flow_effects(chain, NULL, NULL);
 //    getArray(length,samples,out16buf);
+    LOG_I("bufferptr size=%d", sizeof(bufferptr));//2048
     memcpy(resultbytes, &bufferptr, length);
     //sox_flow_effects执行完毕整个流程也就结束了，销毁资源
     LOG_I("执行完毕");
