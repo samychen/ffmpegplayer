@@ -15,11 +15,6 @@ extern "C"{
 }
 #define LOG_I(...) __android_log_print(ANDROID_LOG_ERROR , "main", __VA_ARGS__)
 
-void initInput(const sox_format_t *in, const sox_effects_chain_t *chain, sox_effect_t *e, int ret);
-
-void initOutput(const sox_format_t *in, const sox_format_t *out, const sox_effects_chain_t *chain,
-                sox_effect_t *e, int ret);
-
 void
 reverbEffect(const sox_format_t *in, const sox_effects_chain_t *chain, sox_effect_t *&e, int &ret);
 
@@ -35,7 +30,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_initSox(JNIEnv *env, jobject insta
     }
 }
 
-void initInput(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+void initInput(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret,sox_signalinfo_t *signalinfo) {
     e = sox_create_effect(sox_find_effect("input"));
     char* inputArgs[10];
     inputArgs[0] = (char *) in;
@@ -43,7 +38,7 @@ void initInput(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, in
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_effect_options error");
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, signalinfo, signalinfo);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
     }
@@ -57,7 +52,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_closeSox(JNIEnv *env, jobject inst
 }
 
 void initOutput(sox_format_t *in, sox_format_t *out, sox_effects_chain_t *chain,
-                sox_effect_t *e, int ret) {
+                sox_effect_t *e, int ret,sox_signalinfo_t *signalinfo) {
     e = sox_create_effect(sox_find_effect("output"));
     char* outArgs[10];
     outArgs[0] = (char *)out;
@@ -65,13 +60,13 @@ void initOutput(sox_format_t *in, sox_format_t *out, sox_effects_chain_t *chain,
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_effect_options error");
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, signalinfo, signalinfo);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
     }
     free(e);
 }
-void reverbEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+void reverbEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret,sox_signalinfo_t *signalinfo) {
     e = sox_create_effect(sox_find_effect("reverb"));
     char* wetOnly = "-w";
     char* reverbrance = "50";
@@ -85,13 +80,13 @@ void reverbEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_effect_options error");
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, signalinfo, signalinfo);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
     }
     free(e);
 }
-int echoEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int echoEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret,sox_signalinfo_t *signalinfo) {
     e = sox_create_effect(sox_find_effect("echo"));
     char* arg1 = "0.8";
     char* arg2 = "0.9";
@@ -105,7 +100,7 @@ int echoEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, i
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, signalinfo, signalinfo);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -128,41 +123,41 @@ int getArray(jsize length, sox_sample_t const *samples,int16_t *output) {
 }
 
 extern "C"
-JNIEXPORT jshortArray JNICALL
+JNIEXPORT jcharArray JNICALL
 Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject instance,
-                                                                             jshortArray bytes_,
+                                                                             jcharArray bytes_,
                                                                              jbooleanArray args_) {
-    jshort *bytes = env->GetShortArrayElements(bytes_, NULL);
+    jchar *bytes = env->GetCharArrayElements(bytes_, NULL);
     jboolean *args = env->GetBooleanArrayElements(args_, NULL);
     jsize length = env->GetArrayLength(bytes_);
-
+    int flip = 0;
     static sox_format_t * in, * out;
     sox_effects_chain_t * chain;
     sox_effect_t * e;
-    sox_sample_t samples[length/2]; /* Temporary store whilst copying. */
+    sox_sample_t samples[length]; /* Temporary store whilst copying. */
     size_t number_read;
     int ret;
-    short bufferptr[length];
-    short *resultbytes = (short *) malloc(length* sizeof(short));
+    jchar bufferptr[length];
+    jchar *resultbytes = (jchar *) malloc(length* sizeof(jchar));
     int16_t *  out16buf;
     sox_signalinfo_t signalinfo = {
             44100,
             1,
-            16,
+            8,
             0,
             NULL
     };
     sox_encodinginfo_t encodinginfo = {
             SOX_ENCODING_SIGN2,
-            16,
+            8,
             0,
             sox_option_default,
             sox_option_default,
             sox_option_default,
             sox_false
     };
-    sox_encodings_info_t *encodings_info = (sox_encodings_info_t *) sox_get_encodings_info();
-    LOG_I("encoding name=%d,encoding desc=%s,encoding flags=%d",encodings_info->name,encodings_info->desc,encodings_info->flags);//encoding name=-825848052,encoding desc=Unknown or not applicable,encoding flags=0
+    struct sox_globals_t* sox_globals_p = sox_get_globals ();
+    sox_globals_p->bufsiz = 2048;
     in = sox_open_mem_read(bytes, length, NULL, NULL, "s16");
     if (!in){
         LOG_I("sox_open_mem_read fail");
@@ -170,17 +165,17 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
     }
     LOG_I("open mem success");
     LOG_I("encoding info=%d,filetype=%s",in->encoding.encoding,in->filetype);
-    out = sox_open_mem_write(bufferptr, length, &in->signal, NULL, "s16", NULL);
+    out = sox_open_mem_write(bufferptr, length, &signalinfo, NULL, "s16", NULL);
     if (!out){
         LOG_I("sox_open_mem_write fail");
         goto end;
     }
     LOG_I("open write success");
     //添加输入效果
-//    chain = sox_create_effects_chain(&in->encoding, &out->encoding);
-//    initInput(in, chain, e, ret);
-//    //添加其他效果
-//    //降低声音
+    chain = sox_create_effects_chain(&encodinginfo, &encodinginfo);
+    initInput(in, chain, e, ret,&signalinfo);
+    //添加其他效果
+    //降低声音
 //    e = sox_create_effect(sox_find_effect("vol"));
 //    char* volargs[1];
 //    volargs[0] = "-0.004dB";
@@ -196,31 +191,30 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
 //    //去环境噪声
 //    rednoiseEffect(in, chain, e, ret);
     //混响
-//    reverbEffects(in, chain, e, ret);
+//    reverbEffects(in, chain, e, ret,&signalinfo);
     //回音
-//    echoEffects(in, chain, e, ret);
+//    echoEffects(in, chain, e, ret,&signalinfo);
     //添加输出
-//    initOutput(in, out, chain, e, ret);
-    number_read = sox_read(in, samples, length);
-    ret = sox_write(out, samples, number_read);
-    if (ret!=number_read){
-        LOG_I("write failed");
-    }
+    initOutput(in, out, chain, e, ret,&signalinfo);
+
     //让整个效果器链运行起来
-//    sox_flow_effects(chain, NULL, NULL);
+    sox_flow_effects(chain, NULL, NULL);
 //    getArray(length,samples,out16buf);
     LOG_I("bufferptr size=%d", sizeof(bufferptr));//2048
+//    for (int i = 0; i < sizeof(bufferptr); ++i) {
+//        LOG_I("%d=%d",i,bufferptr[i]);
+//    }
     memcpy(resultbytes, &bufferptr, length);
     //sox_flow_effects执行完毕整个流程也就结束了，销毁资源
     LOG_I("执行完毕");
-//    sox_delete_effects_chain(chain);
+    sox_delete_effects_chain(chain);
     sox_close(out);
     sox_close(in);
     end:
-    env->ReleaseShortArrayElements(bytes_, bytes, 0);
+    env->ReleaseCharArrayElements(bytes_, bytes, 0);
     env->ReleaseBooleanArrayElements(args_, args, 0);
-    jshortArray jshortArray1 = env->NewShortArray(length);
-    env->SetShortArrayRegion(jshortArray1, 0, length, resultbytes);
+    jcharArray jshortArray1 = env->NewCharArray(length);
+    env->SetCharArrayRegion(jshortArray1, 0, length, resultbytes);
     free(resultbytes);
     return jshortArray1;
 }

@@ -69,9 +69,11 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override
             public byte[] onPCMDataAvailable(final byte[] bytes) {
+//                char[] chars = Utils.toChars(bytes);
+//                char[] outchars = memorybuffer2(chars,args);
                 short[] aShort = pcmbuffer(com.ufotosoft.voice.soundutil.Utils.getShort(bytes),args);
                 JNISoundTouch.getInstance().speexDenose(aShort);
-                return com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(aShort);//Utils.toBytes(out);
+                return  com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(aShort);//Utils.toBytes(outchars);
             }
         });
         bz_video_view.setDataSource(videoPath);
@@ -83,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
     public native void closeSox();
     public native void closeSox2();
     public native void pcmtest(String input,String output);
-    native short[] memorybuffer2(short[] bytes, boolean[] args);
+    native char[] memorybuffer2(char[] bytes, boolean[] args);
     native short[] pcmbuffer(short[] bytes, boolean[] args);
     native void memorybuffer(String input, String output,boolean[] args);
     public native int reverse(String filePath);
@@ -250,19 +252,80 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void saveFile(View view) {
-        final long[] pts = new long[ptsList.size()];
-        for (int i = 0,size = ptsList.size(); i < size; i++) {
-            pts[i] = ptsList.get(i);
-        }
+//    public void saveFile(View view) {
+//        final long[] pts = new long[ptsList.size()];
+//        for (int i = 0,size = ptsList.size(); i < size; i++) {
+//            pts[i] = ptsList.get(i);
+//        }
+//        new Thread(new Runnable() {
+//            @Override
+//            public void run() {
+//                saveReverseFile2(videoPath,reverseFile,pts);
+//            }
+//        }).start();
+//    }
+    public void saveFile(final View view) {
+        bz_video_view.pause();
+        view.setEnabled(false);
+        Utils.showLoadingDialog(MainActivity.this,"正在保存视频",true);
         new Thread(new Runnable() {
             @Override
             public void run() {
-                saveReverseFile2(videoPath,reverseFile,pts);
+                long startTime = System.currentTimeMillis();
+                String inputPath = videoPath;
+                final String outputPath = "/storage/emulated/0/Filter/test2.mp4";
+                VideoTransCodeParams videoTransCodeParams = new VideoTransCodeParams();
+                videoTransCodeParams.setInputPath(inputPath);
+                videoTransCodeParams.setOutputPath(outputPath);
+                videoTransCodeParams.setDoWithVideo(false);
+                videoTransCodeParams.setDoWithAudio(true);
+
+                BZMedia.setOnVideoTransCodePcmCallBackListener(new BZMedia.OnVideoTransCodePcmCallBackListener() {
+                    @Override
+                    public byte[] onPcmCallBack(byte[] bytes) {
+                        long startTime = System.currentTimeMillis();
+                        short[] aShort = com.ufotosoft.voice.soundutil.Utils.getShort(bytes);
+                        JNISoundTouch.getInstance().speexDenose(aShort);
+                        if (aShort != null) {
+                            JNISoundTouch.getInstance().putSamples(aShort, aShort.length);
+                            Log.e(TAG, "onPCMDataAvailable: " + aShort.length);
+                            short[] buffer = JNISoundTouch.getInstance().receiveSamples();
+                            byte[] toByteSmall = com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(buffer);
+                            BZLogUtil.v(TAG, "处理后: " + (System.currentTimeMillis() - startTime));
+                            return toByteSmall;
+                        }
+                        return bytes;
+                    }
+                });
+
+                BZMedia.startVideoTransCode(videoTransCodeParams, new BZMedia.OnVideoTransCodeProgressListener() {
+                    @Override
+                    public void videoTransCodeProgress(float progress) {
+                        BZLogUtil.d(TAG, "videoTransCodeProgress progress=" + progress);
+                    }
+
+                    @Override
+                    public void videoTransCodeFail() {
+
+                    }
+
+                    @Override
+                    public void videoTransCodeSuccess() {
+                    }
+                });
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Utils.closeLoadingDialog();
+                        Toast.makeText(MainActivity.this, outputPath, Toast.LENGTH_SHORT).show();
+                        bz_video_view.onResume();
+                    }
+                });
+                BZLogUtil.d(TAG, "videoTransCode 耗时=" + (System.currentTimeMillis() - startTime));
             }
         }).start();
-    }
 
+    }
     BZMedia.OnMergeProgressListener mergeProgressListener = new BZMedia.OnMergeProgressListener() {
         @Override
         public void mergeProgress(float v) {

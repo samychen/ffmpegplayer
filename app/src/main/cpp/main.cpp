@@ -73,7 +73,7 @@ static int output_flow(sox_effect_t *effp, sox_sample_t const *ibuf,
                        sox_sample_t *obuf, size_t *isamp, size_t *osamp) {
     output_combiner_t *z = (output_combiner_t *) effp->priv;
     size_t olen = *isamp;
-    LOG_I("olen = %d",olen);
+    LOG_I("olen = %d",olen);//8192,1072,6176
     if (olen > 8192) {
         exit(-1);
     }
@@ -104,7 +104,6 @@ static sox_effect_handler_t const *output_effect_fn(void) {
     };
     return &handler;
 }
-
 
 extern "C"
 JNIEXPORT void JNICALL
@@ -145,7 +144,41 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmtest(JNIEnv *env, jobject insta
     int ret = sox_effect_options(effp, 1, arg);
     sox_add_effect(chain, effp, &in_sig, &out_sig);
     free(effp);
-
+    effp = sox_create_effect(sox_find_effect("reverb"));
+    char* wetOnly = "-w";
+    char* reverbrance = "50";
+    char* hfDamping = "50";
+    char* roomScale = "100";
+    char* stereoDepth = "100";
+    char* preDelay = "0";
+    char* wetGain = "0";
+    char* reverbArgs[] = {wetOnly,reverbrance,hfDamping,roomScale,stereoDepth,preDelay,wetGain};
+    ret = sox_effect_options(effp,7,reverbArgs);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_effect_options error");
+    }
+    ret = sox_add_effect(chain, effp, &in_sig, &out_sig);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_add_effect error");
+    }
+    free(effp);
+//    effp = sox_create_effect(sox_find_effect("echo"));
+//    char* arg1 = "0.8";
+//    char* arg2 = "0.9";
+//    char* arg3 = "1000";
+//    char* arg4 = "0.3";
+//    char* arg5 = "1800";
+//    char* arg6 = "0.25";
+//    char* echoArgs[] = {arg1,arg2,arg3,arg4,arg5,arg6};
+//    ret = sox_effect_options(effp, 6, echoArgs);
+//    if (ret!=SOX_SUCCESS){
+//        LOG_I("sox_effect_options error");
+//    }
+//    ret = sox_add_effect(chain, effp,&in_sig, &out_sig);
+//    if (ret!=SOX_SUCCESS){
+//        LOG_I("sox_add_effect error");
+//    }
+//    free(effp);
     effp = sox_create_effect(output_effect_fn());
     if (sox_add_effect(chain, effp, &in_sig, &out_sig) != SOX_SUCCESS)
         LOG_I("sox_add_effect error");
