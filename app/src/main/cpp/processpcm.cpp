@@ -138,6 +138,7 @@ static int reverb_input_drain(sox_effect_t * effp, sox_sample_t * obuf, size_t *
 //        *osamp = 0;
 //        return SOX_EOF;
 //    }
+    (void)effp;
     *osamp -= *osamp % effp->out_signal.channels;
     *osamp = sox_read(in, obuf, *osamp);
     return *osamp? SOX_SUCCESS : SOX_EOF;
@@ -169,6 +170,7 @@ static int reverb_output_flow(sox_effect_t *effp LSX_UNUSED, sox_sample_t const 
         return SOX_EOF;
     }
     *osamp = 0;
+    (void)effp;
     return SOX_SUCCESS;
 }
 
@@ -226,7 +228,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     sox_effect_t *effp;
     if (chain->length == 0) {
         effp = sox_create_effect(reverb_input_handler());
-        sox_add_effect(chain, effp, &in_sig, &out_sig);
+        sox_add_effect(chain, effp, &in_sig, &in_sig);
         free(effp);
     }
     int ret = 0;
@@ -238,7 +240,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     if(ret != SOX_SUCCESS){
         LOG_I("sox_effect_options fail");
     }
-    ret = sox_add_effect(chain, effp, &in_sig, &out_sig);
+    ret = sox_add_effect(chain, effp, &in_sig, &in_sig);
     if (ret != SOX_SUCCESS){
         LOG_I("sox_add_effect fail");
     }
@@ -247,7 +249,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     addEffect(chain, effp, ret, &in_sig, &out_sig);
     //输出
     effp = sox_create_effect(reverb_output_handler());
-    ret = sox_add_effect(chain, effp, &in_sig, &out_sig);
+    ret = sox_add_effect(chain, effp, &in_sig, &in_sig);
     if (ret != SOX_SUCCESS){
         LOG_I("sox_add_effect fail");
     }
@@ -273,7 +275,7 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_effect_options error");
     }
-    ret = sox_add_effect(chain, effp, in_sig, out_sig);
+    ret = sox_add_effect(chain, effp, in_sig, in_sig);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
     }
@@ -284,7 +286,7 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
         LOG_I("sox_effect_options error");
     }
         //LOG_I("rate EOF"); /* The failing effect should have displayed an error message */
-    ret = sox_add_effect(chain, effp, in_sig, out_sig);
+    ret = sox_add_effect(chain, effp, in_sig, in_sig);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
     }
@@ -297,7 +299,7 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
         LOG_I("sox_effect_options error");
     }
     //LOG_I("dither EOF"); /* The failing effect should have displayed an error message */
-    sox_add_effect(chain, effp, in_sig, out_sig);
+    sox_add_effect(chain, effp, in_sig, in_sig);
     free(effp);
     //compand
     effp = sox_create_effect(sox_find_effect("compand"));
@@ -311,7 +313,7 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_effect_options error");
     }
-    ret = sox_add_effect(chain, effp, in_sig, out_sig);
+    ret = sox_add_effect(chain, effp, in_sig, in_sig);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
     }
@@ -342,7 +344,7 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
     if (ret!=SOX_SUCCESS){
         //LOG_I("sox_effect_options error");
     }
-    ret = sox_add_effect(chain, effp, in_sig, out_sig);
+    ret = sox_add_effect(chain, effp, in_sig, in_sig);
     if (ret!=SOX_SUCCESS){
         //LOG_I("sox_add_effect error");
     }
