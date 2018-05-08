@@ -48,7 +48,13 @@ public class MainActivity extends AppCompatActivity {
     private String outputFile = Environment.getExternalStorageDirectory().getAbsolutePath() + "/Filter/test_output.mp4";
     List<Long> ptsList = new ArrayList<>();
     private int framerate;
-
+    List<Short> bufferlist = new ArrayList<>();
+    public short[] arraycpy(short[] a,short[] b){
+        short[] c = new short[a.length + b.length];
+        System.arraycopy(a, 0, c, 0, a.length);
+        System.arraycopy(b, 0, c, a.length, b.length);
+        return c;
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -60,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
 //        bz_video_view.setVisibility(View.GONE);
         final boolean[] args = {false,false,false,false,false,false};
 //        memorybuffer("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm",args);
-        initSox();
+        initSox2();
 //        pcmtest("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm");
         JNISoundTouch.getInstance().initSpeex();
         bz_video_view.setOnDecodeDateAvailableListener(new BZVideoView.OnDecodeDateAvailableListener() {
@@ -69,11 +75,24 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override
             public byte[] onPCMDataAvailable(final byte[] bytes) {
-//                char[] chars = Utils.toChars(bytes);
-//                char[] outchars = memorybuffer2(chars,args);
-                short[] aShort = pcmbuffer(com.ufotosoft.voice.soundutil.Utils.getShort(bytes),args);
-                JNISoundTouch.getInstance().speexDenose(aShort);
-                return  com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(aShort);//Utils.toBytes(outchars);
+                short[] tempshort = com.ufotosoft.voice.soundutil.Utils.getShort(bytes);
+                for (int i = 0; i < tempshort.length; i++) {
+                    bufferlist.add(tempshort[i]);
+                }
+                if (bufferlist.size()>=102400){
+                    Object[] objects = bufferlist.toArray();
+                    short[] shortbuf = new short[objects.length];
+                    for (int i = 0; i < objects.length; i++) {
+                        shortbuf[i] = Short.parseShort(objects[i].toString());
+                    }
+                    short[] outbuffer = pcmbuffer(shortbuf,args);
+                    bufferlist.clear();
+                    Log.e(TAG, "send 102400 short" );
+                }
+//                short[] aShort = pcmbuffer(com.ufotosoft.voice.soundutil.Utils.getShort(bytes),args);
+//                JNISoundTouch.getInstance().speexDenose(aShort);
+//                return  com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(aShort);//Utils.toBytes(outchars);
+                return bytes;
             }
         });
         bz_video_view.setDataSource(videoPath);

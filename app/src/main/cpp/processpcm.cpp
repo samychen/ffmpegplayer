@@ -2,9 +2,12 @@
 #include <android/log.h>
 #include <string>
 #include <malloc.h>
+
+
 extern "C"{
 #include "include/sox.h"
 #include "include/util.h"
+#include "include/sox_i.h"
 }
 #define LOG_I(...) __android_log_print(ANDROID_LOG_ERROR , "main", __VA_ARGS__)
 
@@ -19,14 +22,14 @@ typedef struct {
 } input_combiner_t;
 
 static int combiner_start(sox_effect_t *effp) {
-    //LOG_I("combiner_start");
+    LOG_I("combiner_start");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
     return SOX_SUCCESS;
 }
 
 static int combiner_drain(sox_effect_t *effp, sox_sample_t *obuf, size_t *osamp) {
-    //LOG_I("combiner_drain");
+    LOG_I("combiner_drain");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     size_t nr = *osamp > 8192 ? 8192 : *osamp;
     memcpy(z->ibuf,inputData, sizeof(short)*length);
@@ -39,6 +42,7 @@ static int combiner_drain(sox_effect_t *effp, sox_sample_t *obuf, size_t *osamp)
 }
 
 static int combiner_stop(sox_effect_t *effp) {
+    LOG_I("combiner_stop");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     free(z->ibuf);
     return SOX_SUCCESS;
@@ -55,7 +59,11 @@ static sox_effect_handler_t const *input_combiner_effect_fn(void) {
 typedef struct {
     int16_t *ibuf;
 } output_combiner_t;
+FILE *fp;
+size_t  len;
+
 static int ostart(sox_effect_t *effp) {
+    LOG_I("ostart");
     output_combiner_t *z = (output_combiner_t *) effp->priv;
     z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
     unsigned prec = effp->out_signal.precision;
@@ -68,7 +76,7 @@ static int output_flow(sox_effect_t *effp, sox_sample_t const *ibuf,
                        sox_sample_t *obuf, size_t *isamp, size_t *osamp) {
     output_combiner_t *z = (output_combiner_t *) effp->priv;
     size_t olen = *isamp;
-    //LOG_I("olen = %d",olen);
+    LOG_I("olen = %d",olen);
     if (olen > 8192) {
         exit(-1);
     }
@@ -77,10 +85,10 @@ static int output_flow(sox_effect_t *effp, sox_sample_t const *ibuf,
     for (int i = 0; i < olen; ++i) {
         z->ibuf[i] = SOX_SAMPLE_TO_SIGNED_16BIT(ibuf[i], flip);
     }
-
     //LOG_I("size =%d",*isamp);
     memcpy(outputData,z->ibuf,*isamp);
 //    fwrite(z->ibuf, sizeof(int16_t), *isamp, z->fp);
+
     *osamp = 0;
     return SOX_SUCCESS;
 }
@@ -103,9 +111,10 @@ static sox_effect_handler_t const *output_effect_fn(void) {
 extern "C"
 JNIEXPORT void JNICALL
 Java_com_example_gx_ffmpegplayer_MainActivity_initSox2(JNIEnv *env, jobject instance) {
+    fp=fopen("/storage/emulated/0/out.pcm", "wb");
     int ret = sox_init();
     if (ret != SOX_SUCCESS){
-        //LOG_I("sox_init failed");
+        LOG_I("sox_init failed");
         sox_quit();
     }
 }
@@ -145,7 +154,7 @@ static int reverb_input_drain(sox_effect_t * effp, sox_sample_t * obuf, size_t *
 }
 
 static int reverb_output_flow(sox_effect_t *effp LSX_UNUSED, sox_sample_t const * ibuf, sox_sample_t * obuf LSX_UNUSED, size_t * isamp, size_t * osamp) {
-    LOG_I("reverb_output_flow output_flow... *isamp is %d *osamp is %d", *isamp, *osamp);
+//    LOG_I("reverb_output_flow output_flow... *isamp is %d *osamp is %d", *isamp, *osamp);
 //    if (*isamp) {
 //        int i = 0;
 //        SOX_SAMPLE_LOCALS;
@@ -164,8 +173,17 @@ static int reverb_output_flow(sox_effect_t *effp LSX_UNUSED, sox_sample_t const 
 //        *osamp = 0;
 //        return SOX_SUCCESS;
 //    }
+    int16_t *temp = (int16_t *) lsx_malloc(sizeof(int16_t) *  (*isamp));
+    SOX_SAMPLE_LOCALS;
+    int flip = 0;
+    for (int i = 0; i < *isamp; ++i) {
+        temp[i] = SOX_SAMPLE_TO_SIGNED_16BIT(ibuf[i], flip);
+    }
+    LOG_I("size =%d",*isamp);
+    fwrite(temp, sizeof(int16_t), *isamp, fp);
+    free(temp);
     size_t len = sox_write(out, ibuf, *isamp);
-    LOG_I("len=%d,ismap=%d",len,*isamp);
+//    LOG_I("len=%d,ismap=%d",len,*isamp);
     if (len != *isamp) {
         return SOX_EOF;
     }
@@ -174,13 +192,39 @@ static int reverb_output_flow(sox_effect_t *effp LSX_UNUSED, sox_sample_t const 
     return SOX_SUCCESS;
 }
 
+static int reverb_input_start(sox_effect_t *effp) {
+//    LOG_I("combiner_start");
+//    input_combiner_t *z = (input_combiner_t *) effp->priv;
+//    z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
+    return SOX_SUCCESS;
+}
+static int reverb_input_stop(sox_effect_t *effp) {
+//    LOG_I("combiner_stop");
+//    input_combiner_t *z = (input_combiner_t *) effp->priv;
+//    free(z->ibuf);
+    return SOX_SUCCESS;
+}
 static sox_effect_handler_t const * reverb_input_handler(void) {
-    static sox_effect_handler_t handler = { "input", NULL, SOX_EFF_MCHAN | SOX_EFF_MODIFY, NULL, NULL, NULL, reverb_input_drain, NULL, NULL, 0 };
+    static sox_effect_handler_t handler = { "input", NULL, SOX_EFF_MCHAN | SOX_EFF_MODIFY, NULL, reverb_input_start, NULL, reverb_input_drain, reverb_input_stop, NULL, 0 };
     return &handler;
+}
+static int reverb_output_start(sox_effect_t *effp) {
+    LOG_I("reverb_output_start");
+//    output_combiner_t *z = (output_combiner_t *) effp->priv;
+//    z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
+    unsigned prec = effp->out_signal.precision;
+    if (effp->in_signal.mult && effp->in_signal.precision > prec)
+        *effp->in_signal.mult *= 1 - (1 << (31 - prec)) * (1. / SOX_SAMPLE_MAX);
+    return SOX_SUCCESS;
+}
+static int reverb_output_stop(sox_effect_t *effp) {
+//    output_combiner_t *z = (output_combiner_t *) effp->priv;
+//    free(z->ibuf);
+    return SOX_SUCCESS;
 }
 
 static sox_effect_handler_t const * reverb_output_handler(void) {
-    static sox_effect_handler_t handler = { "output", NULL, SOX_EFF_MCHAN | SOX_EFF_MODIFY | SOX_EFF_PREC, NULL, NULL, reverb_output_flow, NULL, NULL, NULL, 0 };
+    static sox_effect_handler_t handler = { "output", NULL, SOX_EFF_MCHAN | SOX_EFF_MODIFY | SOX_EFF_PREC, NULL, reverb_output_start, reverb_output_flow, NULL, reverb_output_stop, NULL, 0 };
     return &handler;
 }
 void LSX_API output_message_handler(
@@ -229,19 +273,19 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     sox_signalinfo_t out_sig = in_sig;
     // set sane SoX global default values
     struct sox_globals_t* sox_globals_p = sox_get_globals ();
-    sox_globals_p->bufsiz = 2048;
+    sox_globals_p->bufsiz = 2048*4;
     sox_globals_p->verbosity = 6;
     sox_globals_p->output_message_handler = output_message_handler;
 
-    in = sox_open_mem_read(inputData, length*2, NULL, NULL, "s16");
+    in = sox_open_mem_read(inputData, length*2, &in_sig, &in_enc, "s16");
     if (!in){
         LOG_I("sox_open_mem_read fail");
     }
-    out = sox_open_mem_write(outputData, length*2, &in_sig, NULL, "s16", NULL);
+    out = sox_open_mem_write(outputData, length*2, &in_sig,  &in_enc, "s16", NULL);
     if (!out){
         LOG_I("sox_open_mem_write fail");
     }
-    sox_effects_chain_t *chain = sox_create_effects_chain(&in_enc, &out_enc);
+    sox_effects_chain_t *chain = sox_create_effects_chain(&in->encoding, &out->encoding);
     sox_effect_t *effp;
     int ret = 0;
     if (chain->length == 0) {
@@ -255,7 +299,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     //添加声音音效
     effp = sox_create_effect(sox_find_effect("vol"));
     char* volargs[1];
-    volargs[0] = "-3dB";
+    volargs[0] = "-20dB";
     ret = sox_effect_options(effp, 1,  volargs);
     if(ret != SOX_SUCCESS){
         LOG_I("vol:sox_effect_options fail=%d",ret);
@@ -300,30 +344,6 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
         LOG_I("pitch:sox_add_effect error=%d",ret);
     }
     free(effp);
-    effp = sox_create_effect(sox_find_effect("rate")); /* Should always succeed. */
-    ret = sox_effect_options(effp, 0, NULL);
-    if (ret!=SOX_SUCCESS){
-        LOG_I("rate:sox_effect_options error=%d",ret);
-    }
-        //LOG_I("rate EOF"); /* The failing effect should have displayed an error message */
-    ret = sox_add_effect(chain, effp, in_sig, in_sig);
-    if (ret!=SOX_SUCCESS){
-        LOG_I("rate:sox_add_effect error=%d",ret);
-    }
-    free(effp);
-    effp = sox_create_effect(sox_find_effect("dither")); /* Should always succeed. */
-    char dither[3] =  "-S";
-    char *const ditargs[1] = {dither};
-    ret = sox_effect_options(effp, 0, NULL);
-    if (ret!=SOX_SUCCESS){
-        LOG_I("dither:sox_effect_options error=%d",ret);
-    }
-    //LOG_I("dither EOF"); /* The failing effect should have displayed an error message */
-    ret = sox_add_effect(chain, effp, in_sig, in_sig);
-    if (ret!=SOX_SUCCESS){
-        LOG_I("dither:sox_add_effect error=%d",ret);
-    }
-    free(effp);
     //compand
     effp = sox_create_effect(sox_find_effect("compand"));
     char* attackRelease = "0.3,1.0";
@@ -342,32 +362,32 @@ void addEffect(sox_effects_chain_t *chain, sox_effect_t *effp, int ret, sox_sign
     }
     free(effp);
     //reverb
-//    effp = sox_create_effect(sox_find_effect("reverb"));
-//    char* wetOnly = "-w";
-//    char* reverbrance = "50";
-//    char* hfDamping = "50";
-//    char* roomScale = "100";
-//    char* stereoDepth = "100";
-//    char* preDelay = "0";
-//    char* wetGain = "0";
-//    char* reverbArgs[] = {wetOnly,reverbrance,hfDamping,roomScale,stereoDepth,preDelay,wetGain};
-//    ret = sox_effect_options(effp,7,reverbArgs);
-//    if (ret!=SOX_SUCCESS){
-//        LOG_I("reverb:sox_effect_options error=%d",ret);
-//    }
-//    ret = sox_add_effect(chain, effp, in_sig, out_sig);
-//    if (ret!=SOX_SUCCESS){
-//        LOG_I("reverb:sox_add_effect error=%d",ret);
-//    }
-//    free(effp);
+    effp = sox_create_effect(sox_find_effect("reverb"));
+    char* wetOnly = "-w";
+    char* reverbrance = "50";
+    char* hfDamping = "50";
+    char* roomScale = "100";
+    char* stereoDepth = "100";
+    char* preDelay = "0";
+    char* wetGain = "0";
+    char* reverbArgs[] = {wetOnly,reverbrance,hfDamping,roomScale,stereoDepth,preDelay,wetGain};
+    ret = sox_effect_options(effp,7,reverbArgs);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_effect_options error");
+    }
+    ret = sox_add_effect(chain, effp, in_sig, in_sig);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_add_effect error");
+    }
+    free(effp);
     //echo
     effp = sox_create_effect(sox_find_effect("echo"));
     char* arg1 = "0.8";
-    char* arg2 = "0.9";
-    char* arg3 = "1000";
-    char* arg4 = "0.3";
-    char* arg5 = "1800";
-    char* arg6 = "0.25";
+    char* arg2 = "0.88";
+    char* arg3 = "60";
+    char* arg4 = "0.45";
+    char* arg5 = "200";
+    char* arg6 = "0.3";
     char* echoArgs[] = {arg1,arg2,arg3,arg4,arg5,arg6};
     ret = sox_effect_options(effp, 6, echoArgs);
     if (ret!=SOX_SUCCESS){

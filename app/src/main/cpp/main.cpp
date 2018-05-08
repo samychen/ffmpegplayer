@@ -162,23 +162,23 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmtest(JNIEnv *env, jobject insta
         LOG_I("sox_add_effect error");
     }
     free(effp);
-//    effp = sox_create_effect(sox_find_effect("echo"));
-//    char* arg1 = "0.8";
-//    char* arg2 = "0.9";
-//    char* arg3 = "1000";
-//    char* arg4 = "0.3";
-//    char* arg5 = "1800";
-//    char* arg6 = "0.25";
-//    char* echoArgs[] = {arg1,arg2,arg3,arg4,arg5,arg6};
-//    ret = sox_effect_options(effp, 6, echoArgs);
-//    if (ret!=SOX_SUCCESS){
-//        LOG_I("sox_effect_options error");
-//    }
-//    ret = sox_add_effect(chain, effp,&in_sig, &out_sig);
-//    if (ret!=SOX_SUCCESS){
-//        LOG_I("sox_add_effect error");
-//    }
-//    free(effp);
+    effp = sox_create_effect(sox_find_effect("echo"));
+    char* arg1 = "0.8";
+    char* arg2 = "0.88";
+    char* arg3 = "40";
+    char* arg4 = "0.45";
+    char* arg5 = "60";
+    char* arg6 = "0.4";
+    char* echoArgs[] = {arg1,arg2,arg3,arg4,arg5,arg6};
+    ret = sox_effect_options(effp, 6, echoArgs);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_effect_options error");
+    }
+    ret = sox_add_effect(chain, effp,&in_sig, &out_sig);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_add_effect error");
+    }
+    free(effp);
     effp = sox_create_effect(output_effect_fn());
     if (sox_add_effect(chain, effp, &in_sig, &out_sig) != SOX_SUCCESS)
         LOG_I("sox_add_effect error");
