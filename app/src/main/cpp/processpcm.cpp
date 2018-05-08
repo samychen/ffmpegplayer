@@ -22,19 +22,19 @@ typedef struct {
 } input_combiner_t;
 
 static int combiner_start(sox_effect_t *effp) {
-    LOG_I("combiner_start");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
     z->ibuf = (int16_t *) lsx_malloc(sizeof(int16_t) * 8192);
     return SOX_SUCCESS;
 }
 
 static int combiner_drain(sox_effect_t *effp, sox_sample_t *obuf, size_t *osamp) {
-    LOG_I("combiner_drain");
     input_combiner_t *z = (input_combiner_t *) effp->priv;
-    size_t nr = *osamp > 8192 ? 8192 : *osamp;
-    memcpy(z->ibuf,inputData, sizeof(short)*length);
+    size_t nr = min(*osamp,length*2);
+    LOG_I("combiner_drain nr=%d",nr);
+    memcpy(z->ibuf,inputData, nr);
+    length = 0;
     //LOG_I("read length=%d,sizeof input=%d",nr,sizeof(short)*length);//8192
-    for (int i = 0; i < sizeof(short)*length; ++i) {
+    for (int i = 0; i < nr; ++i) {
         obuf[i] = SOX_SIGNED_16BIT_TO_SAMPLE(z->ibuf[i], 0);
     }
     *osamp = nr;
@@ -60,7 +60,6 @@ typedef struct {
     int16_t *ibuf;
 } output_combiner_t;
 FILE *fp;
-size_t  len;
 
 static int ostart(sox_effect_t *effp) {
     LOG_I("ostart");
@@ -88,7 +87,6 @@ static int output_flow(sox_effect_t *effp, sox_sample_t const *ibuf,
     //LOG_I("size =%d",*isamp);
     memcpy(outputData,z->ibuf,*isamp);
 //    fwrite(z->ibuf, sizeof(int16_t), *isamp, z->fp);
-
     *osamp = 0;
     return SOX_SUCCESS;
 }
@@ -273,23 +271,23 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     sox_signalinfo_t out_sig = in_sig;
     // set sane SoX global default values
     struct sox_globals_t* sox_globals_p = sox_get_globals ();
-    sox_globals_p->bufsiz = 2048*4;
+    sox_globals_p->bufsiz = 8192;
     sox_globals_p->verbosity = 6;
     sox_globals_p->output_message_handler = output_message_handler;
 
-    in = sox_open_mem_read(inputData, length*2, &in_sig, &in_enc, "s16");
-    if (!in){
-        LOG_I("sox_open_mem_read fail");
-    }
-    out = sox_open_mem_write(outputData, length*2, &in_sig,  &in_enc, "s16", NULL);
-    if (!out){
-        LOG_I("sox_open_mem_write fail");
-    }
-    sox_effects_chain_t *chain = sox_create_effects_chain(&in->encoding, &out->encoding);
+//    in = sox_open_mem_read(inputData, length*2, &in_sig, &in_enc, "s16");
+//    if (!in){
+//        LOG_I("sox_open_mem_read fail");
+//    }
+//    out = sox_open_mem_write(outputData, length*2, &in_sig,  &in_enc, "s16", NULL);
+//    if (!out){
+//        LOG_I("sox_open_mem_write fail");
+//    }
+    sox_effects_chain_t *chain = sox_create_effects_chain(&in_enc, &out_enc);
     sox_effect_t *effp;
     int ret = 0;
     if (chain->length == 0) {
-        effp = sox_create_effect(reverb_input_handler());
+        effp = sox_create_effect(input_combiner_effect_fn());
         ret = sox_add_effect(chain, effp, &in_sig, &in_sig);
         if (ret != SOX_SUCCESS){
             LOG_I("reverb_input_handler:sox_add_effect fail=%d",ret);
@@ -312,11 +310,12 @@ Java_com_example_gx_ffmpegplayer_MainActivity_pcmbuffer(JNIEnv *env, jobject ins
     //添加其他音效
     addEffect(chain, effp, ret, &in_sig, &out_sig);
     //输出
-    effp = sox_create_effect(reverb_output_handler());
+    effp = sox_create_effect(output_effect_fn());
     ret = sox_add_effect(chain, effp, &in_sig, &in_sig);
     if (ret != SOX_SUCCESS){
         LOG_I("reverb_output_handler:sox_add_effect fail=%d",ret);
     }
+    free(effp);
     ret = sox_flow_effects(chain, NULL, NULL);
     if (ret != SOX_SUCCESS){
         LOG_I("sox_flow_effects fail %d",ret);//End Of File or other error

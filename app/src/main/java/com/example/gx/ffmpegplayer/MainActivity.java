@@ -66,38 +66,38 @@ public class MainActivity extends AppCompatActivity {
 //        bz_video_view.setVisibility(View.GONE);
         final boolean[] args = {false,false,false,false,false,false};
 //        memorybuffer("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm",args);
-        initSox2();
-//        pcmtest("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm");
-        JNISoundTouch.getInstance().initSpeex();
-        bz_video_view.setOnDecodeDateAvailableListener(new BZVideoView.OnDecodeDateAvailableListener() {
-            @Override
-            public void onYUVDataAvailable(byte[] bytes, int i, int i1) {
-            }
-            @Override
-            public byte[] onPCMDataAvailable(final byte[] bytes) {
-//                short[] tempshort = com.ufotosoft.voice.soundutil.Utils.getShort(bytes);
-//                for (int i = 0; i < tempshort.length; i++) {
-//                    bufferlist.add(tempshort[i]);
-//                }
-//                if (bufferlist.size()>=102400){
-//                    Object[] objects = bufferlist.toArray();
-//                    short[] shortbuf = new short[objects.length];
-//                    for (int i = 0; i < objects.length; i++) {
-//                        shortbuf[i] = Short.parseShort(objects[i].toString());
-//                    }
-//                    short[] outbuffer = pcmbuffer(shortbuf,args);
-//                    bufferlist.clear();
-//                    Log.e(TAG, "send 102400 short" );
-//                }
-                char[] chars = Utils.toChars(bytes);
-                char[] chars1 = memorybuffer2(chars,args);
-                return Utils.toBytes(chars1);
+//        initSox2();
+        pcmtest("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm");
+//        JNISoundTouch.getInstance().initSpeex();
+//        bz_video_view.setOnDecodeDateAvailableListener(new BZVideoView.OnDecodeDateAvailableListener() {
+//            @Override
+//            public void onYUVDataAvailable(byte[] bytes, int i, int i1) {
+//            }
+//            @Override
+//            public byte[] onPCMDataAvailable(final byte[] bytes) {
+////                short[] tempshort = com.ufotosoft.voice.soundutil.Utils.getShort(bytes);
+////                for (int i = 0; i < tempshort.length; i++) {
+////                    bufferlist.add(tempshort[i]);
+////                }
+////                if (bufferlist.size()>=102400){
+////                    Object[] objects = bufferlist.toArray();
+////                    short[] shortbuf = new short[objects.length];
+////                    for (int i = 0; i < objects.length; i++) {
+////                        shortbuf[i] = Short.parseShort(objects[i].toString());
+////                    }
+////                    short[] outbuffer = pcmbuffer(shortbuf,args);
+////                    bufferlist.clear();
+////                    Log.e(TAG, "send 102400 short" );
+////                }
+////                char[] chars = Utils.toChars(bytes);
+////                char[] chars1 = memorybuffer2(chars,args);
+////                return Utils.toBytes(chars1);
 //                short[] aShort = pcmbuffer(com.ufotosoft.voice.soundutil.Utils.getShort(bytes),args);
 //                JNISoundTouch.getInstance().speexDenose(aShort);
 //                return  com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(aShort);//Utils.toBytes(outchars);
-//                return bytes;
-            }
-        });
+////                return bytes;
+//            }
+//        });
         bz_video_view.setDataSource(videoPath);
         bz_video_view.setPlayLoop(false);
         bz_video_view.start();
