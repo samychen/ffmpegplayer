@@ -75,24 +75,27 @@ public class MainActivity extends AppCompatActivity {
             }
             @Override
             public byte[] onPCMDataAvailable(final byte[] bytes) {
-                short[] tempshort = com.ufotosoft.voice.soundutil.Utils.getShort(bytes);
-                for (int i = 0; i < tempshort.length; i++) {
-                    bufferlist.add(tempshort[i]);
-                }
-                if (bufferlist.size()>=102400){
-                    Object[] objects = bufferlist.toArray();
-                    short[] shortbuf = new short[objects.length];
-                    for (int i = 0; i < objects.length; i++) {
-                        shortbuf[i] = Short.parseShort(objects[i].toString());
-                    }
-                    short[] outbuffer = pcmbuffer(shortbuf,args);
-                    bufferlist.clear();
-                    Log.e(TAG, "send 102400 short" );
-                }
+//                short[] tempshort = com.ufotosoft.voice.soundutil.Utils.getShort(bytes);
+//                for (int i = 0; i < tempshort.length; i++) {
+//                    bufferlist.add(tempshort[i]);
+//                }
+//                if (bufferlist.size()>=102400){
+//                    Object[] objects = bufferlist.toArray();
+//                    short[] shortbuf = new short[objects.length];
+//                    for (int i = 0; i < objects.length; i++) {
+//                        shortbuf[i] = Short.parseShort(objects[i].toString());
+//                    }
+//                    short[] outbuffer = pcmbuffer(shortbuf,args);
+//                    bufferlist.clear();
+//                    Log.e(TAG, "send 102400 short" );
+//                }
+                char[] chars = Utils.toChars(bytes);
+                char[] chars1 = memorybuffer2(chars,args);
+                return Utils.toBytes(chars1);
 //                short[] aShort = pcmbuffer(com.ufotosoft.voice.soundutil.Utils.getShort(bytes),args);
 //                JNISoundTouch.getInstance().speexDenose(aShort);
 //                return  com.ufotosoft.voice.soundutil.Utils.shortToByteSmall(aShort);//Utils.toBytes(outchars);
-                return bytes;
+//                return bytes;
             }
         });
         bz_video_view.setDataSource(videoPath);

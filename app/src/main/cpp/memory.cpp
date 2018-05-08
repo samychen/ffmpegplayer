@@ -90,9 +90,9 @@ int echoEffects(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, i
     e = sox_create_effect(sox_find_effect("echo"));
     char* arg1 = "0.8";
     char* arg2 = "0.9";
-    char* arg3 = "1000";
+    char* arg3 = "40";
     char* arg4 = "0.3";
-    char* arg5 = "1800";
+    char* arg5 = "60";
     char* arg6 = "0.25";
     char* echoArgs[] = {arg1,arg2,arg3,arg4,arg5,arg6};
     ret = sox_effect_options(e, 6, echoArgs);
@@ -121,6 +121,22 @@ int getArray(jsize length, sox_sample_t const *samples,int16_t *output) {
     memcpy(ibuf,output,length);
     return SOX_SUCCESS;
 }
+void LSX_API message_handler(
+        unsigned level,                       /* 1 = FAIL, 2 = WARN, 3 = INFO,
+                                              4 = DEBUG, 5 = DEBUG_MORE,
+                                              6 = DEBUG_MOST. */
+        LSX_PARAM_IN_Z char const * filename, /* Source code __FILENAME__
+from which
+                                              message originates. */
+        LSX_PARAM_IN_PRINTF char const * fmt, /* Message format string. */
+        LSX_PARAM_IN va_list ap               /* Message format parameters. */
+) {
+    if (level > sox_get_globals()->verbosity) {
+        return;
+    }
+    LOG_I("- Received message (level %u, %s):\n", level, filename);
+    LOG_I(fmt, ap);
+}
 
 extern "C"
 JNIEXPORT jcharArray JNICALL
@@ -130,6 +146,7 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
     jchar *bytes = env->GetCharArrayElements(bytes_, NULL);
     jboolean *args = env->GetBooleanArrayElements(args_, NULL);
     jsize length = env->GetArrayLength(bytes_);
+    LOG_I("length=%d",length);
     int flip = 0;
     static sox_format_t * in, * out;
     sox_effects_chain_t * chain;
@@ -143,29 +160,30 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
     sox_signalinfo_t signalinfo = {
             44100,
             1,
-            8,
+            16,
             0,
             NULL
     };
     sox_encodinginfo_t encodinginfo = {
             SOX_ENCODING_SIGN2,
-            8,
+            16,
             0,
             sox_option_default,
             sox_option_default,
             sox_option_default,
             sox_false
     };
-    struct sox_globals_t* sox_globals_p = sox_get_globals ();
-    sox_globals_p->bufsiz = 2048;
-    in = sox_open_mem_read(bytes, length, NULL, NULL, "s16");
+    sox_globals_t* sox_globals_p = sox_get_globals ();
+    sox_globals_p->bufsiz = 5120;
+    sox_globals_p->output_message_handler = message_handler;
+    in = sox_open_mem_read(bytes, length, &signalinfo, &encodinginfo, "s16");
     if (!in){
         LOG_I("sox_open_mem_read fail");
         goto end;
     }
     LOG_I("open mem success");
     LOG_I("encoding info=%d,filetype=%s",in->encoding.encoding,in->filetype);
-    out = sox_open_mem_write(bufferptr, length, &signalinfo, NULL, "s16", NULL);
+    out = sox_open_mem_write(bufferptr, length, &signalinfo, &encodinginfo, "s16", NULL);
     if (!out){
         LOG_I("sox_open_mem_write fail");
         goto end;
@@ -176,34 +194,38 @@ Java_com_example_gx_ffmpegplayer_MainActivity_memorybuffer2(JNIEnv *env, jobject
     initInput(in, chain, e, ret,&signalinfo);
     //添加其他效果
     //降低声音
-//    e = sox_create_effect(sox_find_effect("vol"));
-//    char* volargs[1];
-//    volargs[0] = "-0.004dB";
-//    ret = sox_effect_options(e, 1,  volargs);
-//    if(ret != SOX_SUCCESS){
-//        LOG_I("sox_effect_options fail");
-//    }
-//    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
-//    if (ret != SOX_SUCCESS){
-//        LOG_I("sox_add_effect fail");
-//    }
-//    free(e);
+    e = sox_create_effect(sox_find_effect("vol"));
+    char* volargs[1];
+    volargs[0] = "-4dB";
+    ret = sox_effect_options(e, 1,  volargs);
+    if(ret != SOX_SUCCESS){
+        LOG_I("sox_effect_options fail");
+    }
+    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    if (ret != SOX_SUCCESS){
+        LOG_I("sox_add_effect fail");
+    }
+    free(e);
 //    //去环境噪声
 //    rednoiseEffect(in, chain, e, ret);
     //混响
-//    reverbEffects(in, chain, e, ret,&signalinfo);
+    reverbEffects(in, chain, e, ret,&signalinfo);
     //回音
-//    echoEffects(in, chain, e, ret,&signalinfo);
+    echoEffects(in, chain, e, ret,&signalinfo);
     //添加输出
     initOutput(in, out, chain, e, ret,&signalinfo);
 
     //让整个效果器链运行起来
-    sox_flow_effects(chain, NULL, NULL);
+    ret = sox_flow_effects(chain, NULL, NULL);
+    if (ret!=SOX_SUCCESS){
+        LOG_I("sox_flow_effects fail ret=%d",ret);
+    }
 //    getArray(length,samples,out16buf);
     LOG_I("bufferptr size=%d", sizeof(bufferptr));//2048
 //    for (int i = 0; i < sizeof(bufferptr); ++i) {
 //        LOG_I("%d=%d",i,bufferptr[i]);
 //    }
+
     memcpy(resultbytes, &bufferptr, length);
     //sox_flow_effects执行完毕整个流程也就结束了，销毁资源
     LOG_I("执行完毕");
