@@ -9,26 +9,26 @@ extern "C"{
 
 #define LOG_I(...) __android_log_print(ANDROID_LOG_ERROR , "main", __VA_ARGS__)
 
-int echoEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int echoEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
-int reverbEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int reverbEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
-int initEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int initEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
-int releaseEffect(sox_format_t *in, sox_format_t *out, sox_effects_chain_t *chain,
+int releaseEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain,
               sox_effect_t *e, int ret);
 
-int equalizerEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int equalizerEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
-int highpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int highpassEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
-int lowpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int lowpassEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
-int compandEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret);
+int compandEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret);
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_samychen_gracefulwrapper_soxchange_SoxPlayerActivity_audioEffect(JNIEnv *env, jobject instance,
+Java_com_example_gx_ffmpegplayer_MainActivity_audioEffect(JNIEnv *env, jobject instance,
                                                                     jstring input_,
                                                                     jstring output_, jbooleanArray arrgs) {
     const char *input = env->GetStringUTFChars(input_, 0);
@@ -44,11 +44,44 @@ Java_com_samychen_gracefulwrapper_soxchange_SoxPlayerActivity_audioEffect(JNIEnv
         LOG_I("sox_init failed");
         return;
     }
-    in = sox_open_read(input, NULL, NULL, NULL);
-    out = sox_open_write(output, &in->signal, NULL, NULL, NULL, NULL);
+    sox_encodinginfo_t in_enc;
+    sox_encodinginfo_t out_enc;
+    sox_signalinfo_t in_sig;
+    sox_signalinfo_t out_sig;
+
+    in_enc.bits_per_sample = 16;
+    in_enc.encoding = SOX_ENCODING_SIGN2;
+    in_enc.compression = 0.f;
+    in_enc.opposite_endian = sox_false;
+    in_enc.reverse_bits = sox_option_no;
+    in_enc.reverse_bytes = sox_option_no;
+    in_enc.reverse_nibbles = sox_option_no;
+
+    out_enc.bits_per_sample = 16;
+    out_enc.encoding = SOX_ENCODING_SIGN2;
+    out_enc.compression = 0.f;
+    out_enc.opposite_endian = sox_false;
+    out_enc.reverse_bits = sox_option_no;
+    out_enc.reverse_bytes = sox_option_no;
+    out_enc.reverse_nibbles = sox_option_no;
+
+    in_sig.rate = 44100.f;
+    in_sig.channels = 2;
+    in_sig.length = 0;
+    in_sig.precision = 16;
+    in_sig.mult = NULL;
+
+    out_sig.rate = 44100.f;
+    out_sig.channels = 2;
+    out_sig.length = 0;
+    out_sig.precision = 16;
+    out_sig.mult = NULL;
+
+    in = sox_open_read(input, &in_sig, &in_enc, "s16");
+    out = sox_open_write(output, &out_sig, &out_enc, "s16", NULL, NULL);
     chain = sox_create_effects_chain(&in->encoding, &out->encoding);
     char *args[10];
-    ret = initEffect(in, chain, e, ret);
+    ret = initEffect(in, out,chain, e, ret);
     if (ret!=0){
         LOG_I("init effect error");
     }
@@ -57,32 +90,32 @@ Java_com_samychen_gracefulwrapper_soxchange_SoxPlayerActivity_audioEffect(JNIEnv
         jboolean  booleani = *(arrayArgs+i);
         if (booleani){
            if (i==0){
-               ret = equalizerEffect(in, chain, e, ret);
+               ret = equalizerEffect(in,out, chain, e, ret);
                if (ret!=0){
                    LOG_I("equalizer effect error");
                }
            } else if (i==1) {
-               ret = highpassEffect(in, chain, e, ret);
+               ret = highpassEffect(in,out, chain, e, ret);
                if (ret!=0){
                    LOG_I("highpass effect error");
                }
            } else if (i==2) {
-               ret = lowpassEffect(in, chain, e, ret);
+               ret = lowpassEffect(in,out, chain, e, ret);
                if (ret!=0){
                    LOG_I("lowpass effect error");
                }
            } else if (i==3) {
-               ret = compandEffect(in, chain, e, ret);
+               ret = compandEffect(in, out,chain, e, ret);
                if (ret!=0){
                    LOG_I("compand effect error");
                }
            } else if (i==4) {
-               ret = reverbEffect(in, chain, e, ret);
+               ret = reverbEffect(in,out, chain, e, ret);
                if (ret!=0){
                    LOG_I("reverb effect error");
                }
            } else if (i==5) {
-               ret = echoEffect(in, chain, e, ret);
+               ret = echoEffect(in,out, chain, e, ret);
                if (ret!=0){
                    LOG_I("echo effect error");
                }
@@ -106,7 +139,7 @@ Java_com_samychen_gracefulwrapper_soxchange_SoxPlayerActivity_audioEffect(JNIEnv
     env->ReleaseBooleanArrayElements(arrgs, arrayArgs, 0);
 }
 /*********************************压缩器************************************/
-int compandEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int compandEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("compand"));
     char* attackRelease = "0.3,1.0";
     char* functionTransTable = "6:-90,-90,-70,-55,-31,-21,0,-20";
@@ -119,7 +152,7 @@ int compandEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e,
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -128,7 +161,7 @@ int compandEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e,
     return 0;
 }
 
-int highpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int highpassEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("highpass"));
     char* frequency = "80";
     char* width = "0.5q";
@@ -138,7 +171,7 @@ int highpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -146,7 +179,7 @@ int highpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e
     free(e);
     return 0;
 }
-int lowpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int lowpassEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("lowpass"));
     char* frequency = "60";
     char* width = "0.5q";
@@ -156,7 +189,7 @@ int lowpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e,
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -165,7 +198,7 @@ int lowpassEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e,
     return 0;
 }
 /*****************************均衡器****************************************/
-int equalizerEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int equalizerEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("equalizer"));
     char* frequency = "300";
     char* bandWidth = "1.25q";
@@ -176,7 +209,7 @@ int equalizerEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -196,7 +229,7 @@ sox_effect_t *e, int ret) {
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -205,7 +238,7 @@ sox_effect_t *e, int ret) {
     return 0;
 }
 /****************************第一个effect必须是input******************************************/
-int initEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int initEffect(sox_format_t *in,sox_format_t *out, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("input"));
     char* inputArgs[10];
     inputArgs[0] = (char *) in;
@@ -214,7 +247,7 @@ int initEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, in
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -224,7 +257,7 @@ int initEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, in
 }
 
 /*********************************混响效果*********************************/
-int reverbEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int reverbEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("reverb"));
     char* wetOnly = "-w";
     char* reverbrance = "50";
@@ -239,7 +272,7 @@ int reverbEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, 
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;
@@ -248,7 +281,7 @@ int reverbEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, 
     return 0;
 }
 /**************************回声**********************************************/
-int echoEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
+int echoEffect(sox_format_t *in, sox_format_t *out,sox_effects_chain_t *chain, sox_effect_t *e, int ret) {
     e = sox_create_effect(sox_find_effect("echo"));
     char* arg1 = "0.8";
     char* arg2 = "0.9";
@@ -262,7 +295,7 @@ int echoEffect(sox_format_t *in, sox_effects_chain_t *chain, sox_effect_t *e, in
         LOG_I("sox_effect_options error");
         return -1;
     }
-    ret = sox_add_effect(chain, e, &in->signal, &in->signal);
+    ret = sox_add_effect(chain, e, &in->signal, &out->signal);
     if (ret!=SOX_SUCCESS){
         LOG_I("sox_add_effect error");
         return -1;

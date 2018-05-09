@@ -64,10 +64,11 @@ public class MainActivity extends AppCompatActivity {
         videoPath = "/storage/emulated/0/Filter/test1.mp4";//intent.getStringExtra("filepath");
         bz_video_view = (BZVideoView) findViewById(R.id.bzview);
 //        bz_video_view.setVisibility(View.GONE);
-        final boolean[] args = {false,false,false,false,false,false};
+        final boolean[] args = {true,true,true,true,true,true};
 //        memorybuffer("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm",args);
 //        initSox2();
-        pcmtest("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm");
+//        pcmtest("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm");
+        audioEffect("/storage/emulated/0/test.pcm","/storage/emulated/0/out.pcm",args);
 //        JNISoundTouch.getInstance().initSpeex();
 //        bz_video_view.setOnDecodeDateAvailableListener(new BZVideoView.OnDecodeDateAvailableListener() {
 //            @Override
@@ -115,6 +116,7 @@ public class MainActivity extends AppCompatActivity {
 
     public native long[] getPts();
     public native int[] getKeyframeIndex();
+    public native void audioEffect(String input,String output,boolean[] args);
     public native void test(String inputFile,String decodeFile);
     public native void testseek(String inputFile,String decodeFile,long starttime,long endtime);
     public native void decode(String inputFile,String decodeFile);

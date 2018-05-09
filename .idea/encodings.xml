@@ -4,6 +4,6 @@
     <file url="file://$PROJECT_DIR$/app/libs/android-video-1.2.27.aar" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/app/src/main/cpp/memory.cpp" charset="GBK" />
     <file url="file://$PROJECT_DIR$/app/src/main/cpp/processpcm.cpp" charset="GBK" />
-    <file url="PROJECT" charset="GBK" />
+    <file url="PROJECT" charset="UTF-8" />
   </component>
 </project>
